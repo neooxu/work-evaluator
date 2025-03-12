@@ -1,0 +1,11 @@
+# 阿里云云效API配置示例
+# 复制此文件为 aliyun.yaml 并填入实际的配置信息
+
+# API域名
+domain: "openapi-rdc.aliyuncs.com"
+
+# 组织ID
+organization_id: "your_organization_id"
+
+# 访问令牌
+access_token: "your_access_token"
