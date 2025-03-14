@@ -1,13 +1,16 @@
 [project]
 name = "aliyun-git-server"
 version = "0.1.0"
-description = "阿里云云效Git工作评估MCP服务器"
-authors = []
+description = "阿里云云效 Git 工作评估 MCP Server"
+authors = [
+    { name = "Your Name", email = "your.email@example.com" }
+]
+requires-python = ">=3.12"
 dependencies = [
     "aiohttp",
     "pydantic",
-    "pyyaml",
-    "fastmcp"
+    "fastmcp",
+    "mcp",
 ]
 
 [build-system]
@@ -15,7 +18,10 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project.scripts]
-aliyun_git_server = "mcp_server.aliyun_git_server:main"
+aliyun_git_server = "mcp_server.aliyun_git_server:run_server"
 
 [tool.hatch.build.targets.wheel]
 packages = ["mcp_server"]
+
+[tool.hatch.metadata]
+allow-direct-references = true

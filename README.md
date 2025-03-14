@@ -20,19 +20,18 @@ uv pip install -e .
 
 ## 配置
 
-在运行之前，需要创建配置文件。配置文件可以放在以下位置之一：
+配置信息已直接在代码中定义，位于 `mcp_server/aliyun_git_server.py` 文件中：
 
-1. 当前目录下的 `aliyun.yaml`
-2. 当前目录下的 `config/aliyun.yaml`
-3. 包安装目录下的 `config/aliyun.yaml`
-
-配置文件格式：
-
-```yaml
-domain: "openapi-rdc.aliyuncs.com"
-organization_id: "你的组织ID"
-access_token: "你的访问令牌"
+```python
+# 全局配置 - 直接在代码中定义
+config = AliyunConfig(
+    domain="openapi-rdc.aliyuncs.com",  # 阿里云云效API域名
+    organization_id="619f45cc99ee2b7b75a76352",  # 组织ID
+    access_token="pt-4xSRBHj0OUNA1sVyUZsTeCDZ_0b926bbd-45fd-4c2c-bf87-aef3192e8b52"  # 访问令牌
+)
 ```
+
+如需修改配置，请直接编辑该文件中的配置值。
 
 ## 使用方法
 
