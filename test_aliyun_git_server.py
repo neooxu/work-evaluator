@@ -51,6 +51,7 @@ async def test_list_repositories(days: int = 7):
                         print(f"    - 时间: {commit.authoredDate}")
                         print(f"      作者: {commit.authorName} <{commit.authorEmail}>")
                         print(f"      提交者: {commit.committerName} <{commit.committerEmail}>")
+                        print(f"      分支: {commit.branchName}")
                         print(f"      消息: {commit.message}")
                         if commit.stats:
                             print(f"      变更: +{commit.stats.get('additions', 0)} -{commit.stats.get('deletions', 0)}")

@@ -21,7 +21,7 @@ from mcp.types import LoggingLevel
 from mcp.server.fastmcp import Context
 
 # 创建MCP服务器
-mcp = FastMCP("阿里云云效Git数据提供服务器", 
+mcp = FastMCP("Codeup 阿里云云效 Git 数据提供服务器", 
               instructions="这个服务器使用阿里云云效API提供Git仓库交互功能，用于获取团队成员的代码提交信息和代码修改。")
 
 # 配置类
@@ -39,6 +39,7 @@ class GitCommit(BaseModel):
     - https://help.aliyun.com/zh/yunxiao/developer-reference/getcommit-query-commit-information
     """
     id: str  # 提交ID
+    branchName: Optional[str] = None  # 分支名称
     authorName: str  # 作者姓名
     authorEmail: str  # 作者邮箱
     authoredDate: str  # 作者提交时间
@@ -132,7 +133,7 @@ config = AliyunConfig(
 # API客户端类
 class AliyunGitClient:
     """阿里云云效API客户端"""
-    def __init__(self, config: AliyunConfig, debug_mode: bool = False, ctx: Optional[Context] = None):
+    def __init__(self, config: AliyunConfig, debug_mode: bool = False):
         self.config = config
         self.debug_mode = debug_mode
         self.ctx = ctx
@@ -199,8 +200,8 @@ class AliyunGitClient:
             
             # 调试信息：打印第一页第一个仓库的数据
             if self.debug_mode and page == 1 and data and len(data) > 0:
-                await self.ctx.debug("\nAPI返回的原始数据示例（第一个仓库）:")
-                await self.ctx.debug(json.dumps(data[0], indent=2, ensure_ascii=False))
+                await self.ctx.info("\nAPI返回的原始数据示例（第一个仓库）:")
+                await self.ctx.info(json.dumps(data[0], indent=2, ensure_ascii=False))
             
             if not data:
                 break
@@ -261,6 +262,9 @@ class AliyunGitClient:
                 await self.ctx.error(f"\n处理仓库数据时出错: {str(e)}")
                 await self.ctx.error(f"问题数据: {json.dumps(data, indent=2, ensure_ascii=False)}")
                 raise
+
+        if self.ctx:
+            await self.ctx.report_progress(len(all_active_repos), len(all_active_repos))
         
         return all_active_repos
 
@@ -367,7 +371,8 @@ class AliyunGitClient:
                             shortId=commit_data["shortId"],
                             stats=commit_data["stats"],
                             webUrl=commit_data["webUrl"],
-                            repository=repo_id
+                            repository=repo_id,
+                            branchName=ref_name
                         )
                         
                         # 检查提交时间是否在指定范围内
@@ -544,16 +549,12 @@ class AliyunGitClient:
         
         return all_branches
 
-# 创建API客户端实例
-git_client = AliyunGitClient(config, debug_mode=False)
-
 # MCP工具
 @mcp.tool()
 async def list_repositories(ctx: Context, days: int = 7) -> str:
     """列出指定天数内的活跃代码仓库, 默认7天. 并且包含了最新提交的提交记录
     
     Args:
-        ctx: MCP上下文
         days: 获取最近几天内活跃的仓库，默认7天
     """
     client = AliyunGitClient(config, debug_mode=False, ctx=ctx)
@@ -573,7 +574,6 @@ async def get_repository_commits(ctx: Context, repository_id: str, ref_name: str
     """获取代码仓库的提交记录
     
     Args:
-        ctx: MCP上下文
         repository_id: 仓库ID
         ref_name: 分支名称，默认为master
         days: 获取最近几天的提交记录，默认7天
@@ -601,7 +601,6 @@ async def list_branches(ctx: Context, repository_id: str, days: Optional[int] = 
     """获取代码库的分支列表，按更新时间降序排序
     
     Args:
-        ctx: MCP上下文
         repository_id: 代码库ID
         days: 获取最近几天内有更新的分支，默认7天
     """
@@ -612,7 +611,7 @@ async def list_branches(ctx: Context, repository_id: str, days: Optional[int] = 
 @mcp.tool()
 async def add(a: int, b: int, ctx: Context) -> int:
     """Add two numbers"""
-    await ctx.error(f"Adding {a} and {b}")
+    await ctx.debug(f"Adding {a} and {b}")
     return a + b
 
 # MCP资源
@@ -638,15 +637,17 @@ async def repository_branches_resource(repository_id: str) -> str:
     return json.dumps([branch.model_dump() for branch in branches], ensure_ascii=False)
 
 # 主函数
-async def main():
-    """主函数"""
-    try:
-        await mcp.run()
-    except Exception as e:
-        raise
+# async def main():
+#     """主函数"""
+#     try:
+#         await mcp.run()
+#     except Exception as e:
+#         raise
 
 def run_server():
     """运行服务器的入口点函数"""
+    mcp.settings.debug = True
+    mcp.settings.log_level = "INFO"
     mcp.run()
 
 
