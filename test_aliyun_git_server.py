@@ -11,10 +11,10 @@ from datetime import datetime, timedelta
 from typing import List, Tuple, Optional
 import argparse
 
-from mcp_server.aliyun_git_server import git_client, Repository, GitCommit, config, AliyunGitClient
+from mcp_server.aliyun_git_server import Repository, GitCommit, config, AliyunGitClient
 
 # 创建一个新的客户端实例，用于测试
-test_client = None
+test_client = AliyunGitClient(config)
 
 async def init_test_client(debug_mode: bool = False):
     """初始化测试客户端

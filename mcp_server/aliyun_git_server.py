@@ -133,7 +133,7 @@ config = AliyunConfig(
 # API客户端类
 class AliyunGitClient:
     """阿里云云效API客户端"""
-    def __init__(self, config: AliyunConfig, debug_mode: bool = False):
+    def __init__(self, config: AliyunConfig, debug_mode: bool = False, ctx: Optional[Context] = None):
         self.config = config
         self.debug_mode = debug_mode
         self.ctx = ctx
@@ -147,6 +147,15 @@ class AliyunGitClient:
         self.ssl_context.check_hostname = False
         self.ssl_context.verify_mode = ssl.CERT_NONE
         
+    async def _log(self, level: str, message: str) -> None:
+        """统一的日志处理方法"""
+        if self.ctx is not None:
+            log_method = getattr(self.ctx, level, None)
+            if log_method:
+                await log_method(message)
+        else:
+            print(f"{level}: {message}")
+            
     async def _make_request(self, method: str, path: str, params: Optional[Dict] = None) -> Any:
         """发送API请求"""
         url = f"{self.base_url}{path}"
@@ -200,8 +209,8 @@ class AliyunGitClient:
             
             # 调试信息：打印第一页第一个仓库的数据
             if self.debug_mode and page == 1 and data and len(data) > 0:
-                await self.ctx.info("\nAPI返回的原始数据示例（第一个仓库）:")
-                await self.ctx.info(json.dumps(data[0], indent=2, ensure_ascii=False))
+                await self._log("info", "API返回的原始数据示例（第一个仓库）:")
+                await self._log("info", json.dumps(data[0], indent=2, ensure_ascii=False))
             
             if not data:
                 break
@@ -223,13 +232,13 @@ class AliyunGitClient:
                                 )
                                 is_recently_active = last_activity >= since_date
                             except ValueError as e:
-                                await self.ctx.error(f"\n解析仓库 {repo.name} 的 lastActivityAt 时间失败: {str(e)}")
+                                await self._log("error", f"解析仓库 {repo.name} 的 lastActivityAt 时间失败: {str(e)}")
                                 continue
                         
                         if not is_recently_active:
                             if self.debug_mode:
-                                await self.ctx.debug(f"\n仓库 {repo.name} 的最后活动时间不在指定时间范围内")
-                                await self.ctx.debug("由于仓库按最后活动时间降序排序，后续仓库也不在范围内，提前结束检查")
+                                await self._log("debug", f"仓库 {repo.name} 的最后活动时间不在指定时间范围内")
+                                await self._log("debug", "由于仓库按最后活动时间降序排序，后续仓库也不在范围内，提前结束检查")
                             return all_active_repos
                             
                         # 获取仓库的提交记录
@@ -239,16 +248,16 @@ class AliyunGitClient:
                             repo.commits = commits
                             all_active_repos.append(repo)
                             if self.debug_mode:
-                                await self.ctx.debug(f"\n仓库 {repo.name} 在最近 {days} 天内有 {len(commits)} 条提交记录")
+                                await self._log("debug", f"仓库 {repo.name} 在最近 {days} 天内有 {len(commits)} 条提交记录")
                         elif self.debug_mode:
-                            await self.ctx.debug(f"\n仓库 {repo.name} 在最近 {days} 天内没有提交记录")
+                            await self._log("debug", f"仓库 {repo.name} 在最近 {days} 天内没有提交记录")
                             
                     except Exception as e:
                         if "404 Not Found" in str(e):
                             if self.debug_mode:
-                                await self.ctx.debug(f"\n仓库 {repo.name} 不存在或无访问权限")
+                                await self._log("debug", f"仓库 {repo.name} 不存在或无访问权限")
                         else:
-                            await self.ctx.error(f"\n检查仓库 {repo.name} 的提交记录时出错: {str(e)}")
+                            await self._log("error", f"检查仓库 {repo.name} 的提交记录时出错: {str(e)}")
                         continue
                 
                 # 如果返回的数据少于每页数量，说明已经是最后一页
@@ -259,8 +268,8 @@ class AliyunGitClient:
                 page += 1
                 
             except Exception as e:
-                await self.ctx.error(f"\n处理仓库数据时出错: {str(e)}")
-                await self.ctx.error(f"问题数据: {json.dumps(data, indent=2, ensure_ascii=False)}")
+                await self._log("error", f"处理仓库数据时出错: {str(e)}")
+                await self._log("error", f"问题数据: {json.dumps(data, indent=2, ensure_ascii=False)}")
                 raise
 
         if self.ctx:
@@ -300,7 +309,7 @@ class AliyunGitClient:
                 # 传递 days 参数给 get_branches，这样只获取最近活跃的分支
                 branches = await self.get_branches(repo_id, days=days)
                 if self.debug_mode:
-                    await self.ctx.debug(f"\n获取到 {len(branches)} 个分支")
+                    await self._log("debug", f"获取到 {len(branches)} 个分支")
                 for branch in branches:
                     try:
                         branch_commits = await self._get_branch_commits(repo_id, branch.name, days)
@@ -310,12 +319,12 @@ class AliyunGitClient:
                                 commit_ids.add(commit.id)
                                 all_commits.append(commit)
                         if self.debug_mode:
-                            await self.ctx.debug(f"分支 {branch.name} 获取到 {len(branch_commits)} 条提交记录")
+                            await self._log("debug", f"分支 {branch.name} 获取到 {len(branch_commits)} 条提交记录")
                     except Exception as e:
-                        await self.ctx.error(f"获取分支 {branch.name} 的提交记录失败: {str(e)}")
+                        await self._log("error", f"获取分支 {branch.name} 的提交记录失败: {str(e)}")
                         continue
             except Exception as e:
-                await self.ctx.error(f"获取仓库 {repo_id} 的分支列表失败: {str(e)}")
+                await self._log("error", f"获取仓库 {repo_id} 的分支列表失败: {str(e)}")
                 return []
         else:
             # 获取指定分支的提交
@@ -353,8 +362,8 @@ class AliyunGitClient:
                 
                 # 调试信息：打印第一页第一个提交的数据
                 if self.debug_mode and page == 1 and len(data) > 0:
-                    await self.ctx.debug("\nAPI返回的原始数据示例（第一个提交）:")
-                    await self.ctx.debug(json.dumps(data[0], indent=2, ensure_ascii=False))
+                    await self._log("debug", "API返回的原始数据示例（第一个提交）:")
+                    await self._log("debug", json.dumps(data[0], indent=2, ensure_ascii=False))
                 
                 for commit_data in data:
                     try:
@@ -391,12 +400,12 @@ class AliyunGitClient:
                         branch_commits.append(commit)
                         
                     except KeyError as e:
-                        await self.ctx.error(f"提交数据缺少必要字段: {e}")
-                        await self.ctx.error(f"问题数据: {json.dumps(commit_data, indent=2, ensure_ascii=False)}")
+                        await self._log("error", f"提交数据缺少必要字段: {e}")
+                        await self._log("error", f"问题数据: {json.dumps(commit_data, indent=2, ensure_ascii=False)}")
                         continue
                     except Exception as e:
-                        await self.ctx.error(f"处理提交数据时出错: {e}")
-                        await self.ctx.error(f"问题数据: {json.dumps(commit_data, indent=2, ensure_ascii=False)}")
+                        await self._log("error", f"处理提交数据时出错: {e}")
+                        await self._log("error", f"问题数据: {json.dumps(commit_data, indent=2, ensure_ascii=False)}")
                         continue
                 
                 # 如果返回的数据少于每页数量，说明已经是最后一页
@@ -407,9 +416,9 @@ class AliyunGitClient:
                 
             except Exception as e:
                 if "404 Not Found" in str(e):
-                    await self.ctx.error(f"仓库 {repo_id} 不存在或无访问权限")
+                    await self._log("error", f"仓库 {repo_id} 不存在或无访问权限")
                 else:
-                    await self.ctx.error(f"获取仓库 {repo_id} 的提交记录失败: {str(e)}")
+                    await self._log("error", f"获取仓库 {repo_id} 的提交记录失败: {str(e)}")
                 break
         
         return branch_commits
@@ -432,8 +441,8 @@ class AliyunGitClient:
         
         # 调试信息：打印API返回的原始数据
         if self.debug_mode:
-            await self.ctx.debug("\nGetCommit API返回的原始数据:")
-            await self.ctx.debug(json.dumps(data, indent=2, ensure_ascii=False))
+            await self._log("debug", "GetCommit API返回的原始数据:")
+            await self._log("debug", json.dumps(data, indent=2, ensure_ascii=False))
             
         return GitCommit(
             id=data["id"],
@@ -501,8 +510,8 @@ class AliyunGitClient:
                     
                 # 调试信息：打印第一页第一个分支的数据
                 if self.debug_mode and page == 1 and len(data) > 0:
-                    await self.ctx.debug("\nAPI返回的原始数据示例（第一个分支）:")
-                    await self.ctx.debug(json.dumps(data[0], indent=2, ensure_ascii=False))
+                    await self._log("debug", "API返回的原始数据示例（第一个分支）:")
+                    await self._log("debug", json.dumps(data[0], indent=2, ensure_ascii=False))
                 
                 branches = []
                 for branch_data in data:
@@ -520,11 +529,11 @@ class AliyunGitClient:
                                 # 由于分支按更新时间降序排序，如果当前分支不在时间范围内
                                 # 后续分支也一定不在范围内，可以提前结束
                                 if self.debug_mode:
-                                    await self.ctx.debug(f"\n分支 {branch.name} 的最后提交时间不在指定时间范围内")
-                                    await self.ctx.debug("由于分支按更新时间降序排序，后续分支也不在范围内，提前结束检查")
+                                    await self._log("debug", f"分支 {branch.name} 的最后提交时间不在指定时间范围内")
+                                    await self._log("debug", "由于分支按更新时间降序排序，后续分支也不在范围内，提前结束检查")
                                 return all_branches
                         except ValueError as e:
-                            await self.ctx.error(f"\n解析分支 {branch.name} 的提交时间失败: {str(e)}")
+                            await self._log("error", f"解析分支 {branch.name} 的提交时间失败: {str(e)}")
                             continue
                             
                     # 将符合条件的分支添加到当前页的分支列表中
@@ -533,7 +542,7 @@ class AliyunGitClient:
                     all_branches.append(branch)
                     
                 if self.debug_mode:
-                    await self.ctx.debug(f"\n获取到 {len(branches)} 个分支")
+                    await self._log("debug", f"获取到 {len(branches)} 个分支")
                 
                 # 如果返回的数据少于每页数量，说明已经是最后一页
                 if len(data) < per_page:
@@ -542,9 +551,9 @@ class AliyunGitClient:
                 page += 1
                 
             except Exception as e:
-                await self.ctx.error(f"\n获取分支列表失败: {str(e)}")
+                await self._log("error", f"获取分支列表失败: {str(e)}")
                 if "404 Not Found" in str(e):
-                    await self.ctx.error(f"仓库 {repo_id} 不存在或无访问权限")
+                    await self._log("error", f"仓库 {repo_id} 不存在或无访问权限")
                 break
         
         return all_branches
@@ -647,7 +656,7 @@ async def repository_branches_resource(repository_id: str) -> str:
 def run_server():
     """运行服务器的入口点函数"""
     mcp.settings.debug = True
-    mcp.settings.log_level = "INFO"
+    mcp.settings.log_level = "DEBUG"
     mcp.run()
 
 
